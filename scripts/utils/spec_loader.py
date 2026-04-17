@@ -107,7 +107,7 @@ class SpecLoader:
 
         with filepath.open() as f:
             if filename.endswith((".yaml", ".yml")):
-                spec = yaml.safe_load(f)
+                spec: dict[str, Any] = yaml.safe_load(f)
             else:
                 spec = json.load(f)
 
@@ -123,7 +123,7 @@ class SpecLoader:
                 spec = self.load_spec(filepath.name)
                 domain_files[filepath.name] = spec
                 console.print(f"[green]Loaded: {filepath.name}[/green]")
-            except Exception as e:
+            except (json.JSONDecodeError, OSError, KeyError) as e:
                 console.print(f"[red]Failed to load {filepath.name}: {e}[/red]")
 
         return domain_files
@@ -133,11 +133,11 @@ class SpecLoader:
         errors = []
         try:
             validate(spec)
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             errors.append(str(e))
             return False, errors
-        else:
-            return True, []
+
+        return True, []
 
     def extract_schemas(self, spec: dict) -> dict[str, SchemaInfo]:
         """Extract all schemas from an OpenAPI spec."""
@@ -262,7 +262,7 @@ class SpecLoader:
                 return self.resolve_refs(spec, ref_schema)
             return schema
 
-        resolved = {}
+        resolved: dict[str, Any] = {}
         for key, value in schema.items():
             if isinstance(value, dict):
                 resolved[key] = self.resolve_refs(spec, value)
@@ -309,7 +309,7 @@ class SpecLoader:
 
     def merge_specs(self, specs: list[dict]) -> dict:
         """Merge multiple OpenAPI specs into one."""
-        merged = {
+        merged: dict[str, Any] = {
             "openapi": "3.0.0",
             "info": {"title": "F5 XC API (Merged)", "version": "1.0.0"},
             "paths": {},
@@ -332,8 +332,10 @@ def load_spec_from_file(filepath: Path | str) -> dict:
     filepath = Path(filepath)
     with filepath.open() as f:
         if filepath.suffix in (".yaml", ".yml"):
-            return yaml.safe_load(f)
-        return json.load(f)
+            result: dict = yaml.safe_load(f)
+        else:
+            result = json.load(f)
+        return result
 
 
 def save_spec_to_file(spec: dict, filepath: Path | str, fmt: str = "json") -> None:

@@ -43,7 +43,9 @@ class ReconciliationResult:
 class ReconciliationConfig:
     """Configuration for spec reconciliation."""
 
-    priority: list[str] = field(default_factory=lambda: ["existing", "discovery", "inferred"])
+    priority: list[str] = field(
+        default_factory=lambda: ["existing", "discovery", "inferred"]
+    )
     fix_strategies: dict[str, str] = field(
         default_factory=lambda: {
             "tighter_spec": "relax",
@@ -138,7 +140,7 @@ class SpecReconciler:
                     original = yaml.safe_load(f)
                 else:
                     original = json.load(f)
-        except Exception as e:
+        except (json.JSONDecodeError, yaml.YAMLError, OSError) as e:
             console.print(f"[red]Failed to load {spec_path}: {e}[/red]")
             result.validation_errors.append(str(e))
             return result
@@ -147,7 +149,9 @@ class SpecReconciler:
         if not discrepancies:
             result.modified = False
             result.fixed_spec = original
-            console.print(f"[green]{spec_path.name}: No changes needed (pass-through)[/green]")
+            console.print(
+                f"[green]{spec_path.name}: No changes needed (pass-through)[/green]"
+            )
             return result
 
         # Apply fixes
@@ -167,7 +171,7 @@ class SpecReconciler:
                 console.print(
                     f"[yellow]{spec_path.name}: {len(result.changes)} fixes applied[/yellow]"
                 )
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 result.validation_errors.append(str(e))
                 console.print(f"[red]{spec_path.name}: Fixed spec invalid: {e}[/red]")
                 # Fall back to original
@@ -205,8 +209,12 @@ class SpecReconciler:
             return "spectral"
 
         strategy_map = {
-            DiscrepancyType.SPEC_STRICTER: self.config.fix_strategies.get("tighter_spec", "relax"),
-            DiscrepancyType.SPEC_LOOSER: self.config.fix_strategies.get("looser_spec", "tighten"),
+            DiscrepancyType.SPEC_STRICTER: self.config.fix_strategies.get(
+                "tighter_spec", "relax"
+            ),
+            DiscrepancyType.SPEC_LOOSER: self.config.fix_strategies.get(
+                "looser_spec", "tighten"
+            ),
             DiscrepancyType.MISSING_CONSTRAINT: self.config.fix_strategies.get(
                 "missing_constraint", "add"
             ),
@@ -397,10 +405,16 @@ class SpecReconciler:
 
         return spec
 
-    def _remove_unused_component(self, spec: dict, discrepancy: Discrepancy) -> dict | None:
+    def _remove_unused_component(
+        self, spec: dict, discrepancy: Discrepancy
+    ) -> dict | None:
         """Remove an unused component schema."""
         parts = discrepancy.property_name.split(".")
-        if len(parts) < _MIN_PATH_PARTS or parts[0] != "components" or parts[1] != "schemas":
+        if (
+            len(parts) < _MIN_PATH_PARTS
+            or parts[0] != "components"
+            or parts[1] != "schemas"
+        ):
             return None
 
         schema_name = parts[2]
@@ -410,7 +424,9 @@ class SpecReconciler:
             return spec
         return None
 
-    def _deduplicate_operation_id(self, spec: dict, discrepancy: Discrepancy) -> dict | None:
+    def _deduplicate_operation_id(
+        self, spec: dict, discrepancy: Discrepancy
+    ) -> dict | None:
         """Append HTTP method suffix to duplicate operationIds."""
         parts = discrepancy.property_name.split(".")
         if len(parts) < _MIN_PATH_PARTS or parts[0] != "paths":
@@ -476,12 +492,13 @@ class SpecReconciler:
     ) -> dict | None:
         """Find schema definition for a property path."""
         # Try components/schemas first
-        components = spec.get("components", {})
-        schemas = components.get("schemas", {})
+        components: dict = spec.get("components", {})
+        schemas: dict = components.get("schemas", {})
 
         # Simple lookup by name
         if property_path in schemas:
-            return schemas[property_path]
+            schema_val: dict = schemas[property_path]
+            return schema_val
 
         # Try nested path
         parts = property_path.split("/")
@@ -516,7 +533,11 @@ class SpecReconciler:
             return min(old_value or 0, api_behavior)
         if constraint_type == "maximum" and isinstance(api_behavior, (int, float)):
             return max(old_value or 0, api_behavior)
-        if constraint_type == "enum" and isinstance(api_behavior, list) and isinstance(old_value, list):
+        if (
+            constraint_type == "enum"
+            and isinstance(api_behavior, list)
+            and isinstance(old_value, list)
+        ):
             # Add missing enum values
             return list(set(old_value) | set(api_behavior))
 
@@ -625,7 +646,9 @@ class SpecReconciler:
                 elif action == "add":
                     lines.append(f"- **Added** `{constraint}` to `{prop}`: `{new_val}`")
                 elif action == "remove":
-                    lines.append(f"- **Removed** `{constraint}` from `{prop}` (was `{old_val}`)")
+                    lines.append(
+                        f"- **Removed** `{constraint}` from `{prop}` (was `{old_val}`)"
+                    )
 
             lines.append("")
 
@@ -645,7 +668,9 @@ def load_discrepancies(report_path: Path) -> list[Discrepancy]:
             path=d.get("path", ""),
             property_name=d.get("property_name", ""),
             constraint_type=d.get("constraint_type", ""),
-            discrepancy_type=DiscrepancyType(d.get("discrepancy_type", "constraint_mismatch")),
+            discrepancy_type=DiscrepancyType(
+                d.get("discrepancy_type", "constraint_mismatch")
+            ),
             spec_value=d.get("spec_value"),
             api_behavior=d.get("api_behavior"),
             test_values=d.get("test_values", []),
@@ -657,7 +682,9 @@ def load_discrepancies(report_path: Path) -> list[Discrepancy]:
 
 def main() -> int:
     """Main entry point for reconciliation command."""
-    parser = argparse.ArgumentParser(description="Reconcile F5 XC OpenAPI specs with API behavior")
+    parser = argparse.ArgumentParser(
+        description="Reconcile F5 XC OpenAPI specs with API behavior"
+    )
     parser.add_argument(
         "--config",
         type=Path,
@@ -697,7 +724,9 @@ def main() -> int:
     download_config = config.get("download", {})
     reconciliation_config = config.get("reconciliation", {})
 
-    original_dir = args.original_dir or Path(download_config.get("output_dir", "specs/original"))
+    original_dir = args.original_dir or Path(
+        download_config.get("output_dir", "specs/original")
+    )
     output_dir = args.output_dir or Path("release/specs")
 
     # Load discrepancies from report
@@ -705,11 +734,15 @@ def main() -> int:
     for report_path in args.report:
         loaded = load_discrepancies(report_path)
         discrepancies.extend(loaded)
-        console.print(f"[dim]Loaded {len(loaded)} discrepancies from {report_path}[/dim]")
+        console.print(
+            f"[dim]Loaded {len(loaded)} discrepancies from {report_path}[/dim]"
+        )
 
     # Create reconciler
     recon_config = ReconciliationConfig(
-        priority=reconciliation_config.get("priority", ["existing", "discovery", "inferred"]),
+        priority=reconciliation_config.get(
+            "priority", ["existing", "discovery", "inferred"]
+        ),
         fix_strategies=reconciliation_config.get("fix_strategies", {}),
     )
 
