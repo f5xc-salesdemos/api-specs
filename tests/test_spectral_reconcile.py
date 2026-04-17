@@ -192,6 +192,7 @@ class TestAddTags:
         op = result["paths"]["/api/config/namespaces/{namespace}/resources"]["get"]
         assert "tags" in op
         assert "config" in op["tags"]
+        assert any(t["name"] == "config" for t in result.get("tags", []))
 
 
 class TestRemoveUnusedComponent:

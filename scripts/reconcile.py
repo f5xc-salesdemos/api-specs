@@ -201,12 +201,8 @@ class SpecReconciler:
             return "spectral"
 
         strategy_map = {
-            DiscrepancyType.SPEC_STRICTER: self.config.fix_strategies.get(
-                "tighter_spec", "relax"
-            ),
-            DiscrepancyType.SPEC_LOOSER: self.config.fix_strategies.get(
-                "looser_spec", "tighten"
-            ),
+            DiscrepancyType.SPEC_STRICTER: self.config.fix_strategies.get("tighter_spec", "relax"),
+            DiscrepancyType.SPEC_LOOSER: self.config.fix_strategies.get("looser_spec", "tighten"),
             DiscrepancyType.MISSING_CONSTRAINT: self.config.fix_strategies.get(
                 "missing_constraint", "add"
             ),
@@ -390,11 +386,14 @@ class SpecReconciler:
             tag = segments[0]
 
         operation["tags"] = [tag]
+
+        existing_tags = spec.setdefault("tags", [])
+        if not any(t.get("name") == tag for t in existing_tags):
+            existing_tags.append({"name": tag})
+
         return spec
 
-    def _remove_unused_component(
-        self, spec: dict, discrepancy: Discrepancy
-    ) -> dict | None:
+    def _remove_unused_component(self, spec: dict, discrepancy: Discrepancy) -> dict | None:
         """Remove an unused component schema."""
         parts = discrepancy.property_name.split(".")
         if len(parts) < 3 or parts[0] != "components" or parts[1] != "schemas":
@@ -407,9 +406,7 @@ class SpecReconciler:
             return spec
         return None
 
-    def _deduplicate_operation_id(
-        self, spec: dict, discrepancy: Discrepancy
-    ) -> dict | None:
+    def _deduplicate_operation_id(self, spec: dict, discrepancy: Discrepancy) -> dict | None:
         """Append HTTP method suffix to duplicate operationIds."""
         parts = discrepancy.property_name.split(".")
         if len(parts) < 3 or parts[0] != "paths":
