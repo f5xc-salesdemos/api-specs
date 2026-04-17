@@ -6,6 +6,8 @@
     "contact": { "name": "Test" }
   },
   "servers": [{ "url": "https://example.com" }],
+  "security": [{ "apiKeyAuth": [] }],
+  "tags": [{ "name": "config" }, { "name": "bad" }],
   "paths": {
     "/api/config/namespaces/{metadata.namespace}/resources": {
       "post": {
@@ -59,6 +61,16 @@
           }
         ],
         "responses": { "200": { "description": "OK" } }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "apiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Authorization",
+        "description": "API Token"
       }
     }
   }
