@@ -17,18 +17,22 @@ from .utils.constraint_validator import Discrepancy, DiscrepancyType
 
 console = Console()
 
-MISSING_RULES = frozenset({
-    "oas3-api-servers",
-    "info-contact",
-    "operation-tags",
-    "oas3-parameter-description",
-    "operation-description",
-    "info-description",
-})
+MISSING_RULES = frozenset(
+    {
+        "oas3-api-servers",
+        "info-contact",
+        "operation-tags",
+        "oas3-parameter-description",
+        "operation-description",
+        "info-description",
+    }
+)
 
-UNUSED_RULES = frozenset({
-    "oas3-unused-component",
-})
+UNUSED_RULES = frozenset(
+    {
+        "oas3-unused-component",
+    }
+)
 
 
 def map_violation_to_discrepancy(violation: dict[str, Any]) -> Discrepancy:
@@ -78,10 +82,13 @@ class SpectralAdapter:
 
         file_args = [str(f) for f in spec_files]
         cmd = [
-            spectral_bin, "lint",
+            spectral_bin,
+            "lint",
             *file_args,
-            "-f", "json",
-            "--ruleset", self.ruleset,
+            "-f",
+            "json",
+            "--ruleset",
+            self.ruleset,
         ]
 
         console.print(f"[dim]Running Spectral on {len(spec_files)} specs...[/dim]")
@@ -100,15 +107,17 @@ class SpectralAdapter:
         discrepancies = []
         for v in violations:
             d = map_violation_to_discrepancy(v)
-            discrepancies.append({
-                "path": d.path,
-                "property_name": d.property_name,
-                "constraint_type": d.constraint_type,
-                "discrepancy_type": d.discrepancy_type.value,
-                "spec_value": d.spec_value,
-                "api_behavior": d.api_behavior,
-                "recommendation": d.recommendation,
-            })
+            discrepancies.append(
+                {
+                    "path": d.path,
+                    "property_name": d.property_name,
+                    "constraint_type": d.constraint_type,
+                    "discrepancy_type": d.discrepancy_type.value,
+                    "spec_value": d.spec_value,
+                    "api_behavior": d.api_behavior,
+                    "recommendation": d.recommendation,
+                }
+            )
 
         report = {
             "source": "spectral",
@@ -135,9 +144,7 @@ class SpectralAdapter:
         console.print(f"[dim]Gate check: {error_count} errors, {warn_count} warnings[/dim]")
 
         if max_errors is not None and error_count > max_errors:
-            console.print(
-                f"[red]Gate FAILED: {error_count} errors exceeds max {max_errors}[/red]"
-            )
+            console.print(f"[red]Gate FAILED: {error_count} errors exceeds max {max_errors}[/red]")
             return False
         if max_warnings is not None and warn_count > max_warnings:
             console.print(
