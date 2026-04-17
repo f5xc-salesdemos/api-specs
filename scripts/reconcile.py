@@ -381,7 +381,7 @@ class SpecReconciler:
             return fixer(spec, discrepancy)
         return None
 
-    def _add_servers(self, spec: dict, discrepancy: Discrepancy) -> dict | None:  # noqa: ARG002
+    def _add_servers(self, spec: dict, discrepancy: Discrepancy) -> dict | None:
         """Add servers block from spectral config."""
         servers = self.spectral_config.get("servers")
         if servers is None:
@@ -389,7 +389,7 @@ class SpecReconciler:
         spec["servers"] = copy.deepcopy(servers)
         return spec
 
-    def _add_contact(self, spec: dict, discrepancy: Discrepancy) -> dict | None:  # noqa: ARG002
+    def _add_contact(self, spec: dict, discrepancy: Discrepancy) -> dict | None:
         """Add contact info to spec.info."""
         contact = self.spectral_config.get("contact")
         if contact is None:
@@ -400,7 +400,7 @@ class SpecReconciler:
     def _add_security_schemes(
         self,
         spec: dict,
-        discrepancy: Discrepancy,  # noqa: ARG002
+        discrepancy: Discrepancy,
     ) -> dict | None:
         """Add security scheme metadata for F5 XC API authentication."""
         security_config = self.spectral_config.get("security_scheme")

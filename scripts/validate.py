@@ -316,8 +316,8 @@ class ValidationOrchestrator:
     def _test_endpoint_constraints(
         self,
         endpoint_name: str,
-        create_path: str,  # noqa: ARG002
-        test_cases: dict[str, list[ValidationTestCase]],  # noqa: ARG002
+        create_path: str,
+        test_cases: dict[str, list[ValidationTestCase]],
     ) -> None:
         """Test constraints for a specific endpoint."""
         # This would be implemented to actually test constraints
