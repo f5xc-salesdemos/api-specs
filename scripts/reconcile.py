@@ -163,6 +163,26 @@ class SpecReconciler:
                 result.changes.append(change)
                 result.modified = True
 
+        # Always ensure security metadata is present
+        if "security" not in fixed and self.spectral_config.get("security_scheme"):
+            security_discrepancy = Discrepancy(
+                path=spec_path.name,
+                property_name="",
+                constraint_type="spectral:checkov-security",
+                discrepancy_type=DiscrepancyType.SPECTRAL_MISSING,
+                spec_value=None,
+                api_behavior=None,
+            )
+            security_result = self._apply_spectral_fix(fixed, security_discrepancy)
+            if security_result is not None:
+                result.changes.append(
+                    {
+                        "action": "add_security_schemes",
+                        "constraint_type": "spectral:checkov-security",
+                    }
+                )
+                result.modified = True
+
         # Validate fixed spec
         if result.modified:
             try:
@@ -354,6 +374,7 @@ class SpecReconciler:
             "spectral:operation-operationId-unique": self._deduplicate_operation_id,
             "spectral:oas3-valid-schema-example": self._fix_schema_example,
             "spectral:no-script-tags-in-markdown": self._strip_script_tags,
+            "spectral:checkov-security": self._add_security_schemes,
         }
         fixer = spectral_fixers.get(discrepancy.constraint_type)
         if fixer:
@@ -374,6 +395,30 @@ class SpecReconciler:
         if contact is None:
             return None
         spec.setdefault("info", {})["contact"] = copy.deepcopy(contact)
+        return spec
+
+    def _add_security_schemes(
+        self,
+        spec: dict,
+        discrepancy: Discrepancy,  # noqa: ARG002
+    ) -> dict | None:
+        """Add security scheme metadata for F5 XC API authentication."""
+        security_config = self.spectral_config.get("security_scheme")
+        if security_config is None:
+            return None
+
+        scheme_name = "apiKeyAuth"
+        spec.setdefault("components", {}).setdefault("securitySchemes", {})[
+            scheme_name
+        ] = {
+            "type": security_config.get("type", "apiKey"),
+            "in": security_config.get("in", "header"),
+            "name": security_config.get("name", "Authorization"),
+            "description": security_config.get(
+                "description", "F5 XC API Token (format: APIToken <token>)"
+            ),
+        }
+        spec.setdefault("security", [{"apiKeyAuth": []}])
         return spec
 
     def _add_tags(self, spec: dict, discrepancy: Discrepancy) -> dict | None:
@@ -628,9 +673,13 @@ class SpecReconciler:
                 ]
             )
 
+            has_items = False
             for change in result.changes:
-                action = change.get("action", "unknown")
+                if not isinstance(change, dict):
+                    continue
+                action = change.get("action", "")
                 constraint = change.get("constraint", "")
+                constraint_type = change.get("constraint_type", "")
                 prop = change.get("property", "")
                 old_val = change.get("old_value", "")
                 new_val = change.get("new_value", "")
@@ -639,16 +688,28 @@ class SpecReconciler:
                     lines.append(
                         f"- **Relaxed** `{constraint}` on `{prop}`: `{old_val}` → `{new_val}`"
                     )
+                    has_items = True
                 elif action == "tighten":
                     lines.append(
                         f"- **Tightened** `{constraint}` on `{prop}`: `{old_val}` → `{new_val}`"
                     )
+                    has_items = True
                 elif action == "add":
                     lines.append(f"- **Added** `{constraint}` to `{prop}`: `{new_val}`")
+                    has_items = True
                 elif action == "remove":
                     lines.append(
                         f"- **Removed** `{constraint}` from `{prop}` (was `{old_val}`)"
                     )
+                    has_items = True
+                elif constraint_type.startswith("spectral:"):
+                    lines.append(
+                        f"- **Spectral fix** `{constraint_type}`: {action or 'applied'}"
+                    )
+                    has_items = True
+
+            if not has_items:
+                lines.append(f"- *{len(result.changes)} Spectral fixes applied*")
 
             lines.append("")
 

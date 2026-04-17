@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -338,13 +339,40 @@ def load_spec_from_file(filepath: Path | str) -> dict:
         return result
 
 
+_SHORT_ARRAY_RE = re.compile(
+    r'\[(?:\s*\n\s*(?:"[^"]*"|[-\d.]+(?:e[+-]?\d+)?|true|false|null)'
+    r'(?:,\s*\n\s*(?:"[^"]*"|[-\d.]+(?:e[+-]?\d+)?|true|false|null))*'
+    r"\s*\n\s*)\]",
+    re.MULTILINE,
+)
+
+
+def _compact_short_arrays(json_str: str, max_line_length: int = 120) -> str:
+    """Collapse short JSON arrays to single lines for Biome compatibility."""
+
+    def _collapse(match: re.Match) -> str:
+        content = match.group(0)
+        values = [v.strip() for v in content.strip("[] \n").split(",")]
+        collapsed = "[" + ", ".join(values) + "]"
+        # Measure the full output line: find the line prefix before this array
+        line_start = json_str.rfind("\n", 0, match.start()) + 1
+        prefix = json_str[line_start : match.start()]
+        if len(prefix) + len(collapsed) + 1 <= max_line_length:
+            return collapsed
+        return content  # Keep multi-line if too long
+
+    return _SHORT_ARRAY_RE.sub(_collapse, json_str)
+
+
 def save_spec_to_file(spec: dict, filepath: Path | str, fmt: str = "json") -> None:
     """Save a spec to file in JSON or YAML format."""
     filepath = Path(filepath)
     filepath.parent.mkdir(parents=True, exist_ok=True)
 
-    with filepath.open("w") as f:
-        if fmt == "yaml":
+    if fmt == "yaml":
+        with filepath.open("w") as f:
             yaml.safe_dump(spec, f, default_flow_style=False, sort_keys=False)
-        else:
-            json.dump(spec, f, indent=2)
+    else:
+        json_str = json.dumps(spec, indent=2) + "\n"
+        json_str = _compact_short_arrays(json_str)
+        filepath.write_text(json_str)

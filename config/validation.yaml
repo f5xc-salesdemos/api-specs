@@ -134,3 +134,8 @@ spectral:
         tenant:
           default: "f5-amer-ent"
           description: "Your F5 XC tenant name"
+  security_scheme:
+    type: "apiKey"
+    in: "header"
+    name: "Authorization"
+    description: "F5 XC API Token (format: APIToken <token>)"
