@@ -317,7 +317,7 @@ class SchemathesisRunner:
         return self.auth.request(method, path, **kwargs)
 
     def _make_schema_discrepancy(
-        self, case: Case, validation_error: Exception
+        self, case: Case, validation_error: BaseException
     ) -> Discrepancy:
         """Create a schema validation discrepancy from a validation error."""
         return Discrepancy(
