@@ -243,31 +243,15 @@ class SchemathesisRunner:
                         # Schemathesis 4.x raises FailureGroup (exception group) for validation failures
                         # Extract individual validation failures and create discrepancies
                         for validation_error in eg.exceptions:  # pylint: disable=not-an-iterable
-                            discrepancy = Discrepancy(
-                                path=case.path,
-                                property_name="response_schema",
-                                constraint_type="schema_validation",
-                                discrepancy_type=DiscrepancyType.CONSTRAINT_MISMATCH,
-                                spec_value="Valid per OpenAPI schema",
-                                api_behavior=str(validation_error),
-                                test_values=[self._case_to_dict(case)],
-                                recommendation=f"Update schema or fix API response: {validation_error}",
+                            result.discrepancies.append(
+                                self._make_schema_discrepancy(case, validation_error)
                             )
-                            result.discrepancies.append(discrepancy)
                         result.status = TestStatus.FAILED
                     except Exception as validation_error:  # pylint: disable=broad-exception-caught
                         # Fallback for non-group exceptions
-                        discrepancy = Discrepancy(
-                            path=case.path,
-                            property_name="response_schema",
-                            constraint_type="schema_validation",
-                            discrepancy_type=DiscrepancyType.CONSTRAINT_MISMATCH,
-                            spec_value="Valid per OpenAPI schema",
-                            api_behavior=str(validation_error),
-                            test_values=[self._case_to_dict(case)],
-                            recommendation=f"Update schema or fix API response: {validation_error}",
+                        result.discrepancies.append(
+                            self._make_schema_discrepancy(case, validation_error)
                         )
-                        result.discrepancies.append(discrepancy)
                         result.status = TestStatus.FAILED
 
                     # Additional validation checks
@@ -331,6 +315,21 @@ class SchemathesisRunner:
         path = case.formatted_path
 
         return self.auth.request(method, path, **kwargs)
+
+    def _make_schema_discrepancy(
+        self, case: Case, validation_error: Exception
+    ) -> Discrepancy:
+        """Create a schema validation discrepancy from a validation error."""
+        return Discrepancy(
+            path=case.path,
+            property_name="response_schema",
+            constraint_type="schema_validation",
+            discrepancy_type=DiscrepancyType.CONSTRAINT_MISMATCH,
+            spec_value="Valid per OpenAPI schema",
+            api_behavior=str(validation_error),
+            test_values=[self._case_to_dict(case)],
+            recommendation=f"Update schema or fix API response: {validation_error}",
+        )
 
     def _check_response(
         self,

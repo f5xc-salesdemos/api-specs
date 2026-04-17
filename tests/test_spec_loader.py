@@ -182,5 +182,5 @@ class TestEndpointInfo:
         assert endpoint.method == "POST"
         assert endpoint.operation_id == "createTest"
         assert endpoint.request_schema is None
-        assert endpoint.response_schemas == {}
-        assert endpoint.parameters == []
+        assert not endpoint.response_schemas
+        assert not endpoint.parameters

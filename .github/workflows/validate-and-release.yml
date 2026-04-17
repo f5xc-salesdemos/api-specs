@@ -362,10 +362,12 @@ jobs:
 
       - name: Summary
         run: |
-          echo "### Release Created 🎉" >> "${GITHUB_STEP_SUMMARY}"
-          echo "" >> "${GITHUB_STEP_SUMMARY}"
-          echo "**Version**: v${{ needs.check-release-needed.outputs.version }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "**Content Hash**: ${{ needs.validate.outputs.content_hash }}" >> "${GITHUB_STEP_SUMMARY}"
+          {
+            echo "### Release Created 🎉"
+            echo ""
+            echo "**Version**: v${{ needs.check-release-needed.outputs.version }}"
+            echo "**Content Hash**: ${{ needs.validate.outputs.content_hash }}"
+          } >> "${GITHUB_STEP_SUMMARY}"
 
   skip-release:
     name: Skip Release (No Changes)
@@ -376,12 +378,14 @@ jobs:
     steps:
       - name: Summary
         run: |
-          echo "### No Release Needed ⏭️" >> "${GITHUB_STEP_SUMMARY}"
-          echo "" >> "${GITHUB_STEP_SUMMARY}"
-          echo "No changes detected in upstream specs or generated output." >> "${GITHUB_STEP_SUMMARY}"
-          echo "" >> "${GITHUB_STEP_SUMMARY}"
-          echo "**Specs Changed**: ${{ needs.validate.outputs.specs_changed }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "**Content Hash**: ${{ needs.validate.outputs.content_hash }}" >> "${GITHUB_STEP_SUMMARY}"
+          {
+            echo "### No Release Needed ⏭️"
+            echo ""
+            echo "No changes detected in upstream specs or generated output."
+            echo ""
+            echo "**Specs Changed**: ${{ needs.validate.outputs.specs_changed }}"
+            echo "**Content Hash**: ${{ needs.validate.outputs.content_hash }}"
+          } >> "${GITHUB_STEP_SUMMARY}"
 
   notify:
     name: Notify on Failure

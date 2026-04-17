@@ -1,5 +1,7 @@
 """Tests for Spectral-specific reconciliation fixes."""
 
+# pylint: disable=protected-access
+
 from __future__ import annotations
 
 import pytest
