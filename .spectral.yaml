@@ -1,3 +1,4 @@
+---
 extends:
   - "spectral:oas"
 
@@ -6,7 +7,7 @@ rules:
   # which Spectral's built-in path-params rule incorrectly flags.
   # Disable it here; our pipeline uses spectral-pipeline.yaml with a custom
   # f5-path-params function for accurate validation.
-  path-params: off
+  path-params: "off"
 
   # Auto-fixable rules - keep enabled at warn for discovery
   operation-tags: warn
