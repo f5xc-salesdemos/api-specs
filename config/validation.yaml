@@ -3,9 +3,9 @@
 
 # API Configuration
 api:
-  base_url: "https://f5-amer-ent.console.ves.volterra.io"
-  tenant: "f5-amer-ent"
-  namespace: "r-mordasiewicz"
+  base_url: "https://example-tenant.console.ves.volterra.io"
+  tenant: "example-tenant"
+  namespace: "example-namespace"
   timeout: 30
   retries: 3
   retry_delay: 2
@@ -133,7 +133,7 @@ spectral:
       description: "F5 Distributed Cloud API"
       variables:
         tenant:
-          default: "f5-amer-ent"
+          default: "example-tenant"
           description: "Your F5 XC tenant name"
   security_scheme:
     type: "apiKey"
