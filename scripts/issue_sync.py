@@ -16,20 +16,27 @@ point (Task A6); tests exercise both halves offline with injected
 
 from __future__ import annotations
 
+import argparse
+import json
+import os
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import httpx
+import yaml
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from .utils.constraint_validator import Discrepancy, DiscrepancyType
 from .utils.discrepancy_fingerprint import fingerprint as _fingerprint
+from .utils.discrepancy_reprobe import reprobe_discrepancy as _reprobe_discrepancy
+from .utils.github_issues import GitHubIssues
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from .utils.constraint_validator import Discrepancy
     from .utils.discrepancy_reprobe import ReprobeEvidence
-    from .utils.github_issues import GitHubIssues
 
 
 @dataclass
@@ -326,3 +333,110 @@ def sync_discrepancies(
         }
 
     return mapping
+
+
+def main(argv: list[str] | None = None) -> int:
+    """CLI entry point invoked by the validate-and-release workflow.
+
+    Reads validation_report.json, runs sync_discrepancies, writes the
+    resulting mapping to reports/issue_mapping.json (or the path specified
+    by --mapping-out). Returns 0 on success, non-zero on failure.
+    """
+    parser = argparse.ArgumentParser(
+        description="Sync upstream-spec discrepancies to GitHub issues.",
+    )
+    parser.add_argument(
+        "--report",
+        required=True,
+        help="Path to reports/validation_report.json produced by reconcile.",
+    )
+    parser.add_argument(
+        "--mapping-out",
+        required=True,
+        help="Path where the fingerprint->action mapping JSON is written.",
+    )
+    parser.add_argument("--config", default="config/issue_sync.yaml")
+    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--run-url",
+        default="",
+        help="URL of the detecting CI run; embedded in issue body for traceability.",
+    )
+    args = parser.parse_args(argv)
+
+    with Path(args.config).open() as f:
+        cfg = yaml.safe_load(f) or {}
+    if not cfg.get("enabled", True):
+        Path(args.mapping_out).write_text("{}\n")
+        return 0
+
+    report = json.loads(Path(args.report).read_text())
+    discrepancies = _load_discrepancies(report.get("discrepancies", []))
+
+    # Short-circuit when there is no work to do: skip GitHub/API reads entirely
+    # and emit an empty mapping. This keeps dry-run invocations cheap and avoids
+    # surfacing transient credential/network errors when the report is clean.
+    if not discrepancies:
+        Path(args.mapping_out).write_text("{}\n")
+        return 0
+
+    gh = GitHubIssues(
+        repo=os.environ["GITHUB_REPOSITORY"],
+        token=os.environ["GITHUB_TOKEN"],
+    )
+
+    client = httpx.Client(
+        base_url=os.environ["F5XC_API_URL"],
+        headers={"Authorization": f"Bearer {os.environ['F5XC_API_TOKEN']}"},
+        timeout=30.0,
+    )
+
+    def reprobe(
+        d: Discrepancy,
+        domain: str,
+        method: str,
+    ) -> ReprobeEvidence:
+        return _reprobe_discrepancy(d, domain, method, client=client)
+
+    try:
+        try:
+            mapping = sync_discrepancies(
+                discrepancies=discrepancies,
+                gh=gh,
+                reprobe=reprobe,
+                run_url=args.run_url,
+                dry_run=args.dry_run,
+            )
+        except (httpx.HTTPError, OSError) as exc:
+            # Surface any live-API / GitHub error as a non-zero exit so CI
+            # fails loudly instead of silently writing a partial mapping.
+            print(f"issue_sync: sync failed: {exc}", file=sys.stderr)
+            return 1
+    finally:
+        client.close()
+
+    Path(args.mapping_out).write_text(
+        json.dumps(mapping, indent=2, sort_keys=True) + "\n",
+    )
+    return 0
+
+
+def _load_discrepancies(raw: list[dict]) -> list[tuple[Discrepancy, str, str]]:
+    """Convert raw JSON discrepancies into (Discrepancy, domain, method) tuples."""
+    out = []
+    for entry in raw:
+        d = Discrepancy(
+            path=entry["path"],
+            property_name=entry["property_name"],
+            constraint_type=entry["constraint_type"],
+            discrepancy_type=DiscrepancyType(entry["discrepancy_type"]),
+            spec_value=entry.get("spec_value"),
+            api_behavior=entry.get("api_behavior"),
+            test_values=entry.get("test_values", []),
+        )
+        out.append((d, entry["domain"], entry["method"]))
+    return out
+
+
+if __name__ == "__main__":
+    sys.exit(main())
