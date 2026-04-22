@@ -81,8 +81,14 @@ def load_endpoints_config(config_path: Path) -> dict:
         return result
 
 
-class ValidationOrchestrator:
-    """Orchestrate validation of F5 XC API specs."""
+class ValidationOrchestrator:  # pylint: disable=too-many-instance-attributes
+    """Orchestrate validation of F5 XC API specs.
+
+    The attribute count is intentional — this class aggregates the
+    reconcile-side state machine (config, endpoints, auth, results,
+    discrepancies, and their domain/method sidecars introduced in
+    Task A7) and splitting it would just shuffle the same data around.
+    """
 
     def __init__(
         self,

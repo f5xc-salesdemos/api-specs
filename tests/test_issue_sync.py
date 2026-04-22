@@ -21,15 +21,17 @@ def _issue(num, fp, state="open"):
 
 
 def test_plan_creates_for_new_fingerprint():
-    existing = []
-    current = {"abcd1234ffffffffffffffffffffffffffffffff": {"fake": "disc"}}
+    existing: list[dict] = []
+    current: dict[str, dict] = {
+        "abcd1234ffffffffffffffffffffffffffffffff": {"fake": "disc"}
+    }
     plan = compute_plan(existing, current)
     assert isinstance(plan, SyncPlan)
     assert plan.to_create == ["abcd1234ffffffffffffffffffffffffffffffff"]
-    assert plan.to_update == []
-    assert plan.to_close == []
-    assert plan.to_reopen == []
-    assert plan.skipped_close == []
+    assert not plan.to_update
+    assert not plan.to_close
+    assert not plan.to_reopen
+    assert not plan.skipped_close
 
 
 def test_plan_updates_for_existing_open():
@@ -38,20 +40,20 @@ def test_plan_updates_for_existing_open():
     current = {fp: {"fake": "disc"}}
     plan = compute_plan(existing, current)
     assert plan.to_update == [(7, fp)]
-    assert plan.to_create == []
-    assert plan.to_close == []
-    assert plan.to_reopen == []
+    assert not plan.to_create
+    assert not plan.to_close
+    assert not plan.to_reopen
 
 
 def test_plan_closes_when_fingerprint_disappears():
     fp = "abcd1234" + "f" * 32
     existing = [_issue(7, fp, "open")]
-    current = {}
+    current: dict[str, dict] = {}
     plan = compute_plan(existing, current)
     assert plan.to_close == [(7, fp)]
-    assert plan.to_create == []
-    assert plan.to_update == []
-    assert plan.to_reopen == []
+    assert not plan.to_create
+    assert not plan.to_update
+    assert not plan.to_reopen
 
 
 def test_plan_reopens_for_closed_fingerprint_that_reappears():
@@ -60,9 +62,9 @@ def test_plan_reopens_for_closed_fingerprint_that_reappears():
     current = {fp: {"fake": "disc"}}
     plan = compute_plan(existing, current)
     assert plan.to_reopen == [(7, fp)]
-    assert plan.to_create == []
-    assert plan.to_update == []
-    assert plan.to_close == []
+    assert not plan.to_create
+    assert not plan.to_update
+    assert not plan.to_close
 
 
 def test_plan_respects_do_not_auto_close_label():
@@ -70,9 +72,9 @@ def test_plan_respects_do_not_auto_close_label():
     issue = _issue(7, fp, "open")
     issue["labels"].append({"name": "do-not-auto-close"})
     existing = [issue]
-    current = {}
+    current: dict[str, dict] = {}
     plan = compute_plan(existing, current)
-    assert plan.to_close == []
+    assert not plan.to_close
     assert plan.skipped_close == [(7, fp)]
 
 
@@ -86,13 +88,13 @@ def test_plan_ignores_issues_without_disc_label():
         {"number": 99, "state": "open", "labels": [{"name": "do-not-auto-close"}]},
         {"number": 100, "state": "open", "labels": []},
     ]
-    current = {}
+    current: dict[str, dict] = {}
     plan = compute_plan(existing, current)
-    assert plan.to_create == []
-    assert plan.to_update == []
-    assert plan.to_close == []
-    assert plan.to_reopen == []
-    assert plan.skipped_close == []
+    assert not plan.to_create
+    assert not plan.to_update
+    assert not plan.to_close
+    assert not plan.to_reopen
+    assert not plan.skipped_close
 
 
 def test_plan_mixed_batch_produces_multiple_buckets():
@@ -106,7 +108,7 @@ def test_plan_mixed_batch_produces_multiple_buckets():
         _issue(2, fp_close, "open"),
         _issue(3, fp_reopen, "closed"),
     ]
-    current = {
+    current: dict[str, dict] = {
         fp_update: {},
         fp_reopen: {},
         fp_create: {},
@@ -116,7 +118,7 @@ def test_plan_mixed_batch_produces_multiple_buckets():
     assert plan.to_close == [(2, fp_close)]
     assert plan.to_reopen == [(3, fp_reopen)]
     assert plan.to_create == [fp_create]
-    assert plan.skipped_close == []
+    assert not plan.skipped_close
 
 
 def _d(path="/x", prop="p", dtype=DiscrepancyType.SPEC_STRICTER):

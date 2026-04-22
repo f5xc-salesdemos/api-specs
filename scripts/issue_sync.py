@@ -179,6 +179,11 @@ def _labels(d: Discrepancy, domain: str, fp: str) -> list[str]:
     ]
 
 
+# pylint: disable=too-many-locals,too-many-branches
+# The function mirrors the five-branch lifecycle defined in the design
+# spec §3.4 (create / update / reopen / close-candidate-with-comment /
+# skipped-close), so the local-variable and branch counts are load-bearing.
+# Splitting would obscure that mapping.
 def sync_discrepancies(
     *,
     discrepancies: list[tuple[Discrepancy, str, str]],
