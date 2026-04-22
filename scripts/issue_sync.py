@@ -1,15 +1,35 @@
 """Sync reconcile discrepancies to GitHub issues.
 
-This module is organized into pure plan computation (:func:`compute_plan`)
-and impure execution (to be added in a later task). Tests exercise
-``compute_plan`` offline; CI will eventually run the execution half with a
-real ``GitHubIssues`` client and a live re-probe.
+The module is split into two halves:
+
+* Pure plan computation — :class:`SyncPlan` + :func:`compute_plan`. No I/O,
+  no time, no randomness; deterministic diff of existing GitHub issues
+  against the current reconcile findings.
+* Impure execution — :func:`render_issue_body` + :func:`sync_discrepancies`.
+  Drives the GitHub REST client and a live-API re-probe, rendering each
+  tracked issue with fresh evidence.
+
+CI invokes the execution half via the ``scripts.issue_sync`` module entry
+point (Task A6); tests exercise both halves offline with injected
+``GitHubIssues`` and ``reprobe`` callables.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+
+from .utils.discrepancy_fingerprint import fingerprint as _fingerprint
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from .utils.constraint_validator import Discrepancy
+    from .utils.discrepancy_reprobe import ReprobeEvidence
+    from .utils.github_issues import GitHubIssues
 
 
 @dataclass
@@ -103,3 +123,206 @@ def compute_plan(
             plan.to_create.append(fp)
 
     return plan
+
+
+_TEMPLATE_DIR = Path(__file__).parent / "templates"
+_env = Environment(
+    loader=FileSystemLoader(_TEMPLATE_DIR),
+    autoescape=select_autoescape(["html", "xml"]),
+    keep_trailing_newline=True,
+)
+
+
+def render_issue_body(
+    *,
+    fingerprint: str,
+    domain: str,
+    method: str,
+    discrepancy: Discrepancy,
+    evidence: ReprobeEvidence,
+    run_url: str,
+) -> str:
+    """Render the markdown body for an upstream-discrepancy tracking issue."""
+    template = _env.get_template("issue_body.md.j2")
+    return template.render(
+        fingerprint=fingerprint,
+        domain=domain,
+        method=method,
+        discrepancy=discrepancy,
+        evidence=evidence,
+        run_url=run_url,
+    )
+
+
+def _title(d: Discrepancy, domain: str, method: str) -> str:
+    """Return the GitHub issue title for a tracked discrepancy."""
+    return (
+        f"[upstream] {d.discrepancy_type.value}: "
+        f"{domain} {method.upper()} {d.path} — {d.property_name}"
+    )
+
+
+def _labels(d: Discrepancy, domain: str, fp: str) -> list[str]:
+    """Return the label set applied to a new tracking issue."""
+    return [
+        "upstream-discrepancy",
+        f"disc-type:{d.discrepancy_type.value.replace('_', '-')}",
+        f"domain:{domain.replace('_', '-')}",
+        f"disc:{fp}",  # FULL 40-hex fingerprint in the label
+    ]
+
+
+def sync_discrepancies(
+    *,
+    discrepancies: list[tuple[Discrepancy, str, str]],
+    gh: GitHubIssues,
+    reprobe: Callable[[Discrepancy, str, str], ReprobeEvidence],
+    run_url: str,
+    dry_run: bool = False,
+) -> dict[str, dict]:
+    """Sync discrepancies to GitHub issues; return a fingerprint-to-action map.
+
+    Creates/updates/reopens issues for each ``(discrepancy, domain, method)``
+    tuple in ``discrepancies``. A fresh live re-probe is attached as
+    evidence on every pass. Issues that exist on GitHub under the
+    ``upstream-discrepancy`` label but are absent from ``discrepancies``
+    are close candidates; each close candidate receives a comment noting
+    its disappearance from the latest reconcile run and the actual close
+    is deferred (this function never calls ``gh.close`` — a follow-up
+    path that can re-probe with full discrepancy context owns that
+    lifecycle, per spec section 3.4).
+
+    Args:
+        discrepancies: ``(discrepancy, domain, method)`` tuples for every
+            discrepancy detected in the current reconcile run.
+        gh: Thin GitHub REST client from ``github_issues.GitHubIssues``.
+        reprobe: Callable that issues a live probe and returns
+            :class:`ReprobeEvidence`. Invoked for every current
+            discrepancy, including in dry-run so the rendered body
+            contains real evidence.
+        run_url: URL pointing at the detecting CI run; embedded in the
+            issue body for traceability.
+        dry_run: When True, no GitHub API write is issued (no create,
+            update, reopen, or comment). The read-side search AND the
+            re-probe ARE still called so the returned mapping previews
+            exactly what a live run would do.
+
+    Returns:
+        A mapping from fingerprint (or ``withheld-close:<fp>`` /
+        ``skip-close:<fp>`` synthetic keys) to an action dict with
+        ``action``, ``issue_number``, and ``issue_url`` keys.
+    """
+    mapping: dict[str, dict] = {}
+
+    # Read-side is always executed, even in dry-run, so the returned mapping
+    # faithfully previews the full plan (including close candidates).
+    existing = gh.search_by_label("upstream-discrepancy", state="all")
+    existing_by_fp: dict[str, dict] = {}
+    for i in existing:
+        for lbl in i.get("labels", []):
+            if lbl["name"].startswith("disc:"):
+                existing_by_fp[lbl["name"][len("disc:") :]] = i
+                break
+
+    current_fps: set[str] = set()
+
+    for d, domain, method in discrepancies:
+        fp = _fingerprint(d, domain=domain, method=method)
+        current_fps.add(fp)
+        evidence = reprobe(d, domain, method)
+        body = render_issue_body(
+            fingerprint=fp,
+            domain=domain,
+            method=method,
+            discrepancy=d,
+            evidence=evidence,
+            run_url=run_url,
+        )
+        existing_issue = existing_by_fp.get(fp)
+
+        if existing_issue is None:
+            if dry_run:
+                mapping[fp] = {
+                    "action": "dry-run-created",
+                    "issue_number": None,
+                    "issue_url": None,
+                }
+            else:
+                result = gh.create(
+                    title=_title(d, domain, method),
+                    body=body,
+                    labels=_labels(d, domain, fp),
+                )
+                mapping[fp] = {
+                    "action": "created",
+                    "issue_number": result["number"],
+                    "issue_url": result["html_url"],
+                }
+        elif existing_issue["state"] == "open":
+            if dry_run:
+                mapping[fp] = {
+                    "action": "dry-run-updated",
+                    "issue_number": existing_issue["number"],
+                    "issue_url": existing_issue.get("html_url"),
+                }
+            else:
+                gh.update(number=existing_issue["number"], body=body)
+                mapping[fp] = {
+                    "action": "updated",
+                    "issue_number": existing_issue["number"],
+                    "issue_url": existing_issue.get("html_url"),
+                }
+        elif dry_run:
+            mapping[fp] = {
+                "action": "dry-run-reopened",
+                "issue_number": existing_issue["number"],
+                "issue_url": existing_issue.get("html_url"),
+            }
+        else:
+            # Closed issue whose fingerprint reappeared — reopen it.
+            gh.reopen(
+                number=existing_issue["number"],
+                comment=f"Discrepancy reappeared.\n\n{body}",
+            )
+            mapping[fp] = {
+                "action": "reopened",
+                "issue_number": existing_issue["number"],
+                "issue_url": existing_issue.get("html_url"),
+            }
+
+    # Close candidates: existing open issues whose fingerprint is absent
+    # from the current run. We cannot re-probe without the original
+    # Discrepancy context, so leave an explanatory comment and defer.
+    for fp, issue in existing_by_fp.items():
+        if issue["state"] != "open":
+            continue
+        if fp in current_fps:
+            continue
+        labels = {lbl["name"] for lbl in issue.get("labels", [])}
+        if "do-not-auto-close" in labels:
+            if not dry_run:
+                gh.comment(
+                    number=issue["number"],
+                    body="Skipped auto-close: do-not-auto-close label present.",
+                )
+            mapping[f"skip-close:{fp}"] = {
+                "action": "skipped-close",
+                "issue_number": issue["number"],
+                "issue_url": issue.get("html_url"),
+            }
+            continue
+        if not dry_run:
+            gh.comment(
+                number=issue["number"],
+                body=(
+                    "Fingerprint absent from latest reconcile run; "
+                    f"close withheld pending live re-probe.\n\n{run_url}"
+                ),
+            )
+        mapping[f"withheld-close:{fp}"] = {
+            "action": "close-withheld-pending-reprobe",
+            "issue_number": issue["number"],
+            "issue_url": issue.get("html_url"),
+        }
+
+    return mapping
