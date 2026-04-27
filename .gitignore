@@ -128,8 +128,10 @@ tsconfig.tsbuildinfo
 .direnv/
 /result
 
-# Workspace
+# Workspace (includes git worktree dirs for AI agents and bare-repo workflows)
 .worktrees/
+worktrees/
+.wt/
 .codex/
 playground/
 
@@ -172,4 +174,5 @@ out.jsonl
 out.html
 pi-*.html
 packages/coding-agent/src/internal-urls/docs-index.generated.ts
+packages/coding-agent/src/internal-urls/build-info.generated.ts
 packages/typescript-edit-benchmark/runs/
