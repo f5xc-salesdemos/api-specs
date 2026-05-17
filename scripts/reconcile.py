@@ -251,14 +251,16 @@ class SpecReconciler:
             new_ref = f"#/components/schemas/{new_name}"
             ref_count = _rewrite_refs(spec, old_ref, new_ref)
 
-            changes.append({
-                "action": "rename_schema",
-                "constraint_type": "schema-rename",
-                "old_name": old_name,
-                "new_name": new_name,
-                "references_updated": ref_count,
-                "reason": rule.get("reason", ""),
-            })
+            changes.append(
+                {
+                    "action": "rename_schema",
+                    "constraint_type": "schema-rename",
+                    "old_name": old_name,
+                    "new_name": new_name,
+                    "references_updated": ref_count,
+                    "reason": rule.get("reason", ""),
+                }
+            )
             console.print(
                 f"  [cyan]Renamed schema {old_name} → {new_name} ({ref_count} refs)[/cyan]"
             )

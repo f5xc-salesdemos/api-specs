@@ -298,73 +298,88 @@ class TestAddSecuritySchemes:
 class TestSchemaRename:
     """Tests for config-driven schema rename functionality."""
 
-    def test_rename_applied_to_matching_file(self):
-        config = ReconciliationConfig(
-            schema_renames=[{
-                "old_name": "routeRouteType",
-                "new_name": "operateRouteRouteType",
-                "file_pattern": "operate.route",
-            }],
-        )
-        reconciler = SpecReconciler(
-            original_dir=".",
-            output_dir=".",
+    @staticmethod
+    def _make_reconciler(renames):
+        from pathlib import Path
+
+        config = ReconciliationConfig(schema_renames=renames)
+        return SpecReconciler(
+            original_dir=Path("."),
+            output_dir=Path("."),
             config=config,
         )
-        spec = {
-            "components": {"schemas": {
-                "routeRouteType": {"type": "string", "enum": ["A"]},
-                "other": {"properties": {"rt": {"$ref": "#/components/schemas/routeRouteType"}}},
-            }},
+
+    def test_rename_applied_to_matching_file(self):
+        reconciler = self._make_reconciler(
+            [
+                {
+                    "old_name": "routeRouteType",
+                    "new_name": "operateRouteRouteType",
+                    "file_pattern": "operate.route",
+                },
+            ]
+        )
+        spec: dict = {
+            "components": {
+                "schemas": {
+                    "routeRouteType": {"type": "string", "enum": ["A"]},
+                    "other": {
+                        "properties": {
+                            "rt": {"$ref": "#/components/schemas/routeRouteType"},
+                        },
+                    },
+                },
+            },
         }
         changes = reconciler._apply_schema_renames(spec, "foo.operate.route.json")
         assert len(changes) == 1
         assert "operateRouteRouteType" in spec["components"]["schemas"]
         assert "routeRouteType" not in spec["components"]["schemas"]
-        assert spec["components"]["schemas"]["other"]["properties"]["rt"]["$ref"] == "#/components/schemas/operateRouteRouteType"
+        other = spec["components"]["schemas"]["other"]
+        assert isinstance(other, dict)
+        props = other["properties"]
+        assert isinstance(props, dict)
+        assert props["rt"]["$ref"] == "#/components/schemas/operateRouteRouteType"
 
     def test_rename_skipped_for_non_matching_file(self):
-        config = ReconciliationConfig(
-            schema_renames=[{
-                "old_name": "routeRouteType",
-                "new_name": "operateRouteRouteType",
-                "file_pattern": "operate.route",
-            }],
+        reconciler = self._make_reconciler(
+            [
+                {
+                    "old_name": "routeRouteType",
+                    "new_name": "operateRouteRouteType",
+                    "file_pattern": "operate.route",
+                },
+            ]
         )
-        reconciler = SpecReconciler(
-            original_dir=".",
-            output_dir=".",
-            config=config,
-        )
-        spec = {
-            "components": {"schemas": {
-                "routeRouteType": {"type": "object", "properties": {}},
-            }},
+        spec: dict = {
+            "components": {
+                "schemas": {
+                    "routeRouteType": {"type": "object", "properties": {}},
+                },
+            },
         }
         changes = reconciler._apply_schema_renames(spec, "foo.schema.route.json")
         assert len(changes) == 0
         assert "routeRouteType" in spec["components"]["schemas"]
 
     def test_rename_skipped_when_schema_absent(self):
-        config = ReconciliationConfig(
-            schema_renames=[{
-                "old_name": "routeRouteType",
-                "new_name": "operateRouteRouteType",
-                "file_pattern": "operate.route",
-            }],
+        reconciler = self._make_reconciler(
+            [
+                {
+                    "old_name": "routeRouteType",
+                    "new_name": "operateRouteRouteType",
+                    "file_pattern": "operate.route",
+                },
+            ]
         )
-        reconciler = SpecReconciler(
-            original_dir=".",
-            output_dir=".",
-            config=config,
-        )
-        spec = {"components": {"schemas": {"other": {"type": "object"}}}}
+        spec: dict = {"components": {"schemas": {"other": {"type": "object"}}}}
         changes = reconciler._apply_schema_renames(spec, "foo.operate.route.json")
         assert len(changes) == 0
 
     def test_no_renames_when_config_empty(self):
-        config = ReconciliationConfig(schema_renames=[])
-        reconciler = SpecReconciler(original_dir=".", output_dir=".", config=config)
-        spec = {"components": {"schemas": {"routeRouteType": {"type": "string"}}}}
+        reconciler = self._make_reconciler([])
+        spec: dict = {
+            "components": {"schemas": {"routeRouteType": {"type": "string"}}},
+        }
         changes = reconciler._apply_schema_renames(spec, "anything.json")
         assert len(changes) == 0
