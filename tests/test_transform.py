@@ -514,9 +514,8 @@ class TestMarkDeprecatedOperations:
                 }
             },
         }
-        original_state = spec["paths"]["/api/old"]["get"]["deprecated"]
         result = mark_deprecated_operations(spec, config_with_metadata, "test.json")
-        assert result["paths"]["/api/old"]["get"]["deprecated"] == original_state
+        assert result["paths"]["/api/old"]["get"]["deprecated"] is True
 
 
 class TestRemoveUnusedSchemas:
