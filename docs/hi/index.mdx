@@ -1,0 +1,52 @@
+---
+title: F5 XC API विनिर्देश
+description: 'F5 Distributed Cloud के लिए मान्य, समृद्ध, और OAS3-अनुपालक OpenAPI विनिर्देश'
+template: splash
+sidebar:
+  hidden: true
+hero:
+  tagline: >-
+    F5 Distributed Cloud के लिए प्रोडक्शन-रेडी OpenAPI विनिर्देश — लाइव API के
+    विरुद्ध मान्य, स्वतः-मरम्मत, और सुरक्षा मेटाडेटा, सर्वर परिभाषाओं, तथा
+    ऑपरेशन टैग्स के साथ समृद्ध।
+  actions:
+    - text: पाइपलाइन अवलोकन
+      link: 02-pipeline/
+      icon: right-arrow
+      variant: primary
+    - text: नवीनतम रिपोर्ट देखें
+      link: 01-validation-report/
+      variant: secondary
+i18n:
+  sourceHash: 9d3db123fe9b
+  translator: machine
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+<CardGrid>
+  <Card title="पाइपलाइन अवलोकन" icon="rocket">
+    छह-चरणीय स्वचालित पाइपलाइन: डाउनलोड, मान्यकरण, लिंट, समाधान, गेट, रिलीज़।
+    [और पढ़ें](/02-pipeline/)
+  </Card>
+  <Card title="लागू किए गए सुधार" icon="pencil">
+    कंस्ट्रेंट मरम्मत, Spectral संवर्धन, सुरक्षा मेटाडेटा, और JSON फ़ॉर्मेटिंग।
+    [और पढ़ें](/03-fixes-applied/)
+  </Card>
+  <Card title="Spectral नियम" icon="warning">
+    कस्टम `f5-path-params` फ़ंक्शन के साथ दो-कॉन्फ़िग लिंटिंग आर्किटेक्चर।
+    [और पढ़ें](/04-spectral-rules/)
+  </Card>
+  <Card title="कॉन्फ़िगरेशन" icon="setting">
+    `validation.yaml` और `endpoints.yaml` के लिए संदर्भ।
+    [और पढ़ें](/05-configuration/)
+  </Card>
+  <Card title="मान्यकरण रिपोर्ट" icon="document">
+    नवीनतम पाइपलाइन रन में लागू किए गए सभी सुधारों की स्वतः-जनित रिपोर्ट।
+    [और पढ़ें](/01-validation-report/)
+  </Card>
+  <Card title="योगदान" icon="github">
+    डेवलपमेंट सेटअप, लोकल पाइपलाइन, परीक्षण, और PR वर्कफ़्लो।
+    [और पढ़ें](/06-contributing/)
+  </Card>
+</CardGrid>

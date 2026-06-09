@@ -1,0 +1,51 @@
+---
+title: F5 XC API 仕様
+description: F5 Distributed Cloud 向けの検証済み、拡張済み、OAS3 準拠の OpenAPI 仕様
+template: splash
+sidebar:
+  hidden: true
+hero:
+  tagline: >-
+    F5 Distributed Cloud 向けの本番環境対応 OpenAPI 仕様 — ライブ API
+    に対して検証され、自動修復され、セキュリティメタデータ、サーバー定義、オペレーションタグで拡張されています。
+  actions:
+    - text: パイプライン概要
+      link: 02-pipeline/
+      icon: right-arrow
+      variant: primary
+    - text: 最新レポートを表示
+      link: 01-validation-report/
+      variant: secondary
+i18n:
+  sourceHash: 9d3db123fe9b
+  translator: machine
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+<CardGrid>
+  <Card title="パイプライン概要" icon="rocket">
+    6 段階の自動化パイプライン: ダウンロード、検証、リント、調整、ゲート、リリース。
+    [詳細を読む](/02-pipeline/)
+  </Card>
+  <Card title="適用された修正" icon="pencil">
+    制約の修復、Spectral による拡張、セキュリティメタデータ、および JSON フォーマット。
+    [詳細を読む](/03-fixes-applied/)
+  </Card>
+  <Card title="Spectral ルール" icon="warning">
+    カスタム `f5-path-params` 関数を備えた 2 構成リンティングアーキテクチャ。
+    [詳細を読む](/04-spectral-rules/)
+  </Card>
+  <Card title="設定" icon="setting">
+    `validation.yaml` と `endpoints.yaml` のリファレンス。
+    [詳細を読む](/05-configuration/)
+  </Card>
+  <Card title="検証レポート" icon="document">
+    最新のパイプライン実行で適用されたすべての修正の自動生成レポート。
+    [詳細を読む](/01-validation-report/)
+  </Card>
+  <Card title="コントリビューション" icon="github">
+    開発環境のセットアップ、ローカルパイプライン、テスト、PR ワークフロー。
+    [詳細を読む](/06-contributing/)
+  </Card>
+</CardGrid>

@@ -1,0 +1,51 @@
+---
+title: F5 XC API 스펙
+description: 'F5 Distributed Cloud를 위한 검증되고, 보강되며, OAS3 호환 OpenAPI 사양'
+template: splash
+sidebar:
+  hidden: true
+hero:
+  tagline: >-
+    F5 Distributed Cloud를 위한 프로덕션 레디 OpenAPI 스펙 — 라이브 API 대비 검증, 자동 복구, 보안
+    메타데이터·서버 정의·오퍼레이션 태그 보강 포함.
+  actions:
+    - text: 파이프라인 개요
+      link: 02-pipeline/
+      icon: right-arrow
+      variant: primary
+    - text: 최신 보고서 보기
+      link: 01-validation-report/
+      variant: secondary
+i18n:
+  sourceHash: 9d3db123fe9b
+  translator: machine
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+<CardGrid>
+  <Card title="파이프라인 개요" icon="rocket">
+    6단계 자동화 파이프라인: 다운로드, 검증, 린트, 조정, 게이트, 릴리스.
+    [자세히 보기](/02-pipeline/)
+  </Card>
+  <Card title="적용된 수정 사항" icon="pencil">
+    제약 조건 복구, Spectral 보강, 보안 메타데이터, JSON 포맷팅.
+    [자세히 보기](/03-fixes-applied/)
+  </Card>
+  <Card title="Spectral 규칙" icon="warning">
+    커스텀 `f5-path-params` 함수를 포함한 2중 구성 린팅 아키텍처.
+    [자세히 보기](/04-spectral-rules/)
+  </Card>
+  <Card title="설정" icon="setting">
+    `validation.yaml` 및 `endpoints.yaml` 레퍼런스.
+    [자세히 보기](/05-configuration/)
+  </Card>
+  <Card title="검증 보고서" icon="document">
+    최신 파이프라인 실행에서 적용된 모든 수정 사항의 자동 생성 보고서.
+    [자세히 보기](/01-validation-report/)
+  </Card>
+  <Card title="기여하기" icon="github">
+    개발 환경 설정, 로컬 파이프라인, 테스트, PR 워크플로우.
+    [자세히 보기](/06-contributing/)
+  </Card>
+</CardGrid>

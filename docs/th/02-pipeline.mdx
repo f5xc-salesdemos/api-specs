@@ -1,0 +1,85 @@
+---
+title: ภาพรวมของไปป์ไลน์
+description: >-
+  ไปป์ไลน์อัตโนมัติ 6 ขั้นตอนที่ดาวน์โหลด ตรวจสอบ ลินต์ ปรับแก้ ควบคุมเกณฑ์
+  และเผยแพร่ F5 XC OpenAPI specs
+i18n:
+  sourceHash: 8b956cf69c75
+  translator: machine
+---
+
+ไปป์ไลน์ทำงานทุกวันเวลา 6:00 UTC ผ่าน GitHub Actions (`validate-and-release.yml`) และทุกครั้งที่มีการ push ไปยัง `main` ที่กระทบกับ `scripts/`, `config/` หรือ `pyproject.toml` นอกจากนี้ยังสามารถทริกเกอร์ด้วยตนเองพร้อมตัวเลือกในการบังคับเผยแพร่หรือข้ามการทดสอบ API แบบสด
+
+## ขั้นตอนของไปป์ไลน์
+
+```
+ Download         Validate          Spectral Lint
+ ┌──────┐        ┌──────────┐      ┌─────────────┐
+ │ Fetch │───────▶│Schemathesis│────▶│  Discover   │
+ │ specs │        │Constraints│     │  violations │
+ └──────┘        └──────────┘      └─────────────┘
+                                          │
+                 Spectral Gate       Reconcile
+                ┌─────────────┐    ┌──────────┐
+                │  Enforce    │◀───│Apply fixes│
+                │  thresholds │    │to specs   │
+                └─────────────┘    └──────────┘
+                       │
+                    Release
+                 ┌──────────┐
+                 │  Package  │
+                 │  & tag    │
+                 └──────────┘
+```
+
+### 1. ดาวน์โหลด
+
+`scripts/download.py` ดึงไฟล์ ZIP ของ F5 XC OpenAPI spec อย่างเป็นทางการจาก `docs.cloud.f5.com` โดยใช้ HTTP ETag headers สำหรับ conditional GET requests -- หากชุดไฟล์ต้นทางไม่มีการเปลี่ยนแปลง การดาวน์โหลดจะถูกข้าม ไฟล์ JSON specs ที่แตกออกมาจะอยู่ใน `specs/original/`
+
+### 2. ตรวจสอบความถูกต้อง
+
+`scripts/validate.py` จัดการการทดสอบสองประเภทกับ F5 XC API แบบสด:
+
+- **Schemathesis** -- การทดสอบแบบ property-based ที่สร้าง payloads สุ่มทั้งที่ถูกต้องและไม่ถูกต้องตาม spec แล้วตรวจสอบว่า API สอดคล้องกับข้อจำกัดของ spec หรือไม่
+- **การตรวจสอบข้อจำกัด** -- การทดสอบแบบเจาะจงสำหรับหมวดหมู่ข้อจำกัด OpenAPI ทั้ง 10 หมวด (ความยาวสตริง, รูปแบบ, ขอบเขตตัวเลข, ฟิลด์ที่จำเป็น, enums, ขอบเขตอาร์เรย์, โครงสร้างออบเจกต์, การประกอบ, การขึ้นต่อกัน, ชนิดข้อมูล)
+
+ความคลาดเคลื่อนจะถูกเขียนลงใน `reports/validation_report.json`
+
+### 3. Spectral Lint (ค้นหา)
+
+`scripts/spectral_lint.py --mode discover` รัน Spectral CLI กับ specs ต้นฉบับโดยใช้ `spectral-pipeline.yaml` ซึ่งค้นหาปัญหาคุณภาพ OAS3 -- บล็อก servers ที่หายไป, ข้อมูลติดต่อที่หายไป, operations ที่ไม่มีแท็ก, component schemas ที่ไม่ได้ใช้, operationIds ที่ซ้ำกัน, ตัวอย่างที่ไม่ถูกต้อง และ script tags ใน descriptions
+
+การละเมิดจะถูกแปลงเป็นออบเจกต์ `Discrepancy` และเขียนลงใน `reports/spectral_report.json` ดูรายละเอียดชุดกฎทั้งหมดได้ที่ [กฎ Spectral](/04-spectral-rules/)
+
+### 4. ปรับแก้
+
+`scripts/reconcile.py` รับไฟล์รายงานทั้งสองและใช้การแก้ไขกับทุก spec:
+
+- **การแก้ไขข้อจำกัด** ปรับข้อจำกัดของ schema (ผ่อนคลาย, เข้มงวดขึ้น, เพิ่ม, ลบ) ตามพฤติกรรม API ที่สังเกตได้ ดู [การแก้ไขที่ใช้](/03-fixes-applied/)
+- **การแก้ไข Spectral** เสริม specs ด้วย servers, ข้อมูลติดต่อ, แท็ก, ข้อมูลเมตาด้านความปลอดภัย และลบ components ที่ไม่ได้ใช้
+- **ข้อมูลเมตาด้านความปลอดภัย** จะถูกแทรกเสมอหากมีการตั้งค่า `security_scheme` ในคอนฟิก แม้ว่า Spectral จะไม่ได้ตั้งค่าสถานะเตือนก็ตาม
+
+Specs ที่แก้ไขแล้วจะถูกเขียนลงใน `release/specs/` และตรวจสอบด้วย `openapi-spec-validator` ก่อนบันทึก หาก spec ที่แก้ไขไม่ผ่านการตรวจสอบ จะใช้ไฟล์ต้นฉบับเป็นทางเลือกสำรอง
+
+### 5. Spectral Gate
+
+`scripts/spectral_lint.py --mode gate` รัน Spectral อีกครั้งกับ specs ที่ปรับแก้แล้วใน `release/specs/` เกตจะตรวจสอบจำนวน error และ warning เทียบกับเกณฑ์ที่กำหนดค่าได้ (`spectral.gate.max_errors` และ `spectral.gate.max_warnings` ใน `validation.yaml`)
+
+:::note
+เฟส 1 (ปัจจุบัน): เกณฑ์ตั้งเป็น `null` (เตือนเท่านั้น) ตั้งค่า `max_errors: 0` เพื่อบังคับใช้เกตที่ไม่ยอมให้มี error
+:::
+
+### 6. เผยแพร่
+
+`scripts/release.py` จัดแพ็กเกจ specs ที่ปรับแก้แล้วเป็นไฟล์ ZIP archive พร้อมหมายเลขเวอร์ชัน เวอร์ชันใช้รูปแบบ `YYYY.MM.DD-<patch>` ที่ได้จากวันที่ข้อมูลเมตาของ spec ต้นทาง การเผยแพร่ประกอบด้วย:
+
+- ไฟล์ spec แต่ละโดเมน (ไฟล์ JSON 268 ไฟล์)
+- ไฟล์ `openapi.json` ที่รวมทุกโดเมนเข้าด้วยกัน
+- ไฟล์ `CHANGELOG.md` ที่ระบุรายการการแก้ไขทั้งหมดที่ใช้
+- สรุป `VALIDATION_REPORT.md`
+
+งาน CI สร้าง GitHub Release พร้อมแนบ ZIP ที่ติดแท็ก `v<version>` แฮชเนื้อหาจะป้องกันการเผยแพร่ซ้ำเมื่อไม่มีการเปลี่ยนแปลง
+
+## การอัปเดตเอกสาร
+
+งาน CI แบบขนานจะสร้างไฟล์ `docs/01-validation-report.mdx` จากรายงานการตรวจสอบโดยใช้ `scripts/generate_docs.py` จากนั้นเปิด PR หากเนื้อหามีการเปลี่ยนแปลง

@@ -1,0 +1,125 @@
+---
+title: Spectral リンティングルール
+description: ベースOASルールとカスタムf5-path-params関数を備えた2構成Spectralアーキテクチャ
+i18n:
+  sourceHash: 0e32e7569d97
+  translator: machine
+---
+
+本プロジェクトでは、OAS3リンティングに[Spectral](https://stoplight.io/open-source/spectral)を使用しており、CI/外部ツールとパイプラインのカスタムロジックを分離する2構成アーキテクチャを採用しています。
+
+## 2構成アーキテクチャ
+
+### `.spectral.yaml` -- ベース構成
+
+GitHub Super-Linterおよび外部CIツールで使用されます。`spectral:oas`（組み込みOASルールセット）を拡張します。カスタム関数を含まないため、`spectral/functions/` ディレクトリにアクセスせずにSpectralを実行するツールとの互換性が保たれます。
+
+```yaml
+extends:
+  - "spectral:oas"
+
+rules:
+  path-params: "off"
+  operation-tags: warn
+  oas3-api-servers: warn
+  info-contact: warn
+  oas3-unused-component: warn
+  operation-operationId-unique: error
+  oas3-valid-schema-example: error
+  no-script-tags-in-markdown: warn
+  operation-description: info
+  info-description: info
+```
+
+### `spectral-pipeline.yaml` -- パイプライン構成
+
+`scripts/spectral_lint.py`（discoverモードおよびgateモードの両方）で使用されます。ベース構成を拡張し、カスタム `f5-path-params` 関数を追加します：
+
+```yaml
+extends:
+  - "./.spectral.yaml"
+
+functionsDir: "./spectral/functions"
+functions:
+  - f5-path-params
+
+rules:
+  f5-path-params:
+    description: "Path parameters must be declared and used"
+    message: "{{error}}"
+    severity: error
+    given: "$.paths[*]"
+    then:
+      function: f5-path-params
+```
+
+## `path-params` を無効にしている理由
+
+Spectralの組み込み `path-params` ルールは、`{metadata.namespace}` や `{metadata.name}` のようなドット区切りのパラメータ名を使用するF5 XC APIを誤って検出します。組み込みルールはパラメータ名のドットを解析できないため、未宣言として報告してしまいます。
+
+カスタム `f5-path-params` 関数（`spectral/functions/f5-path-params.js`）は、`{placeholder}` の完全な内容を宣言済みパラメータ名と照合することで、ドット区切りの名前を正しく処理します。パスレベルとオペレーションレベルの両方のパラメータをチェックし、双方向のエラーを報告します：
+
+- URLパス内のプレースホルダーに対応するパラメータ宣言がない場合
+- 宣言済みのパスパラメータがURLパスに存在しない場合
+
+## ルールリファレンス
+
+### 自動修正可能なルール
+
+これらのルールは、違反が検出された際にリコンサイラーによって自動修正されます。各修正の詳細については[適用される修正](/03-fixes-applied/)を参照してください。
+
+| ルール | 重大度 | 修正メソッド | 説明 |
+|------|----------|------------|-------------|
+| `oas3-api-servers` | warn | `_add_servers` | スペックに `servers` ブロックが必要 |
+| `info-contact` | warn | `_add_contact` | `info` に `contact` を含める必要がある |
+| `operation-tags` | warn | `_add_tags` | すべてのオペレーションに少なくとも1つのタグが必要 |
+| `oas3-unused-component` | warn | `_remove_unused_component` | 参照されていないコンポーネントスキーマを排除 |
+| `operation-operationId-unique` | error | `_deduplicate_operation_id` | すべてのoperationIdが一意でなければならない |
+| `oas3-valid-schema-example` | error | `_fix_schema_example` | exampleとdefaultがスキーマに一致する必要がある |
+| `no-script-tags-in-markdown` | warn | `_strip_script_tags` | descriptionに `<script>` タグを含めない |
+| `f5-path-params` | error | -- | パスパラメータは宣言され使用されなければならない |
+
+:::note
+`f5-path-params` はエラー重大度のルールですが、自動修正されません。違反は手動レビューが必要な本質的なスペックの欠陥を示しています。
+:::
+
+### 修正不可能なルール
+
+これらのルールは、意味のある自動修正ができないため `info` 重大度にダウングレードされています：
+
+| ルール | 重大度 | 説明 |
+|------|----------|-------------|
+| `operation-description` | info | オペレーションにdescriptionを記載すべき |
+| `info-description` | info | API情報にdescriptionを記載すべき |
+
+## パイプライン統合
+
+Spectralアダプター（`scripts/spectral_lint.py`）は2つのモードで実行されます：
+
+### Discoverモード（リコンサイル前）
+
+```bash
+make spectral-lint
+# Equivalent to: python -m scripts.spectral_lint --mode discover
+```
+
+`specs/original/` をスキャンし、`reports/spectral_report.json` を出力します。リコンサイラーはこのレポートをバリデーションレポートと併せて使用します。
+
+### Gateモード（リコンサイル後）
+
+```bash
+make spectral-gate
+# Equivalent to: python -m scripts.spectral_lint --mode gate
+```
+
+`release/specs/` をスキャンし、`reports/spectral_gate_report.json` を出力します。違反が設定されたしきい値を超える場合、終了コード1を返します。
+
+### 違反のマッピング
+
+Spectralの違反は3つのサブタイプを持つ `Discrepancy` オブジェクトに変換されます：
+
+| Spectralルールカテゴリ | DiscrepancyType | ルールの例 |
+|------------------------|-----------------|---------------|
+| 必須要素の欠落 | `SPECTRAL_MISSING` | `oas3-api-servers`, `info-contact`, `operation-tags` |
+| 既存要素の不正 | `SPECTRAL_INVALID` | `oas3-valid-schema-example`, `no-script-tags-in-markdown` |
+| デッドコード | `SPECTRAL_UNUSED` | `oas3-unused-component` |

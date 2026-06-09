@@ -1,0 +1,51 @@
+---
+title: F5 XC API 規格
+description: 經過驗證、增強且符合 OAS3 標準的 F5 Distributed Cloud OpenAPI 規格
+template: splash
+sidebar:
+  hidden: true
+hero:
+  tagline: >-
+    適用於 F5 Distributed Cloud 的正式環境 OpenAPI 規格 — 透過即時 API
+    驗證、自動修復，並增強安全性中繼資料、伺服器定義和操作標籤。
+  actions:
+    - text: 流水線概觀
+      link: 02-pipeline/
+      icon: right-arrow
+      variant: primary
+    - text: 檢視最新報告
+      link: 01-validation-report/
+      variant: secondary
+i18n:
+  sourceHash: 9d3db123fe9b
+  translator: machine
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+<CardGrid>
+  <Card title="流水線概觀" icon="rocket">
+    六階段自動化流水線：下載、驗證、檢查、調和、閘門、發佈。
+    [閱讀更多](/02-pipeline/)
+  </Card>
+  <Card title="已套用的修復" icon="pencil">
+    約束修復、Spectral 增強、安全性中繼資料和 JSON 格式化。
+    [閱讀更多](/03-fixes-applied/)
+  </Card>
+  <Card title="Spectral 規則" icon="warning">
+    雙配置檢查架構，搭配自訂 `f5-path-params` 函式。
+    [閱讀更多](/04-spectral-rules/)
+  </Card>
+  <Card title="設定" icon="setting">
+    `validation.yaml` 和 `endpoints.yaml` 的參考文件。
+    [閱讀更多](/05-configuration/)
+  </Card>
+  <Card title="驗證報告" icon="document">
+    自動產生的報告，涵蓋最新流水線執行中所有已套用的修復。
+    [閱讀更多](/01-validation-report/)
+  </Card>
+  <Card title="貢獻指南" icon="github">
+    開發環境設定、本地流水線、測試和 PR 工作流程。
+    [閱讀更多](/06-contributing/)
+  </Card>
+</CardGrid>

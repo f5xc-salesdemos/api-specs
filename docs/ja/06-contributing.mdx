@@ -1,0 +1,194 @@
+---
+title: 開発ガイド
+description: F5 XC API Specs プロジェクトのセットアップ、実行、テスト、コントリビュート方法
+i18n:
+  sourceHash: 1dc0c369e7a0
+  translator: machine
+---
+
+## セットアップ
+
+```bash
+# リポジトリのクローンと開発用依存関係のインストール
+git clone https://github.com/f5xc-salesdemos/api-specs.git
+cd api-specs
+make dev-install
+
+# Spectral CLIのインストール（リンティングステージに必要）
+npm install -g @stoplight/spectral-cli
+```
+
+`make dev-install` は `.venv/` に仮想環境を作成し、dev extras（pytest、ruff、mypy）を含むプロジェクトをインストールします。
+
+### 環境変数
+
+ライブAPI検証には以下が必要です：
+
+```bash
+export F5XC_API_URL="https://example-tenant.console.ves.volterra.io"
+export F5XC_API_TOKEN="your-api-token"
+```
+
+これらが設定されていない場合、`make validate` はドライランモードにフォールバックします。
+
+## パイプラインの実行
+
+### フルパイプライン
+
+```bash
+make all
+# 実行順序: download → validate → spectral-lint → reconcile → spectral-gate → release
+```
+
+### 個別ステージ
+
+```bash
+make download        # アップストリームのスペックを取得
+make validate        # ライブAPIテストを実行（APIトークンが必要）
+make validate-dry    # ドライラン（API呼び出しなし）
+make spectral-lint   # オリジナルスペックに対するSpectralディスカバーモード
+make reconcile       # 両方のレポートからの修正を適用
+make spectral-gate   # 修正済みスペックに対するSpectral品質ゲート
+make release         # リリースパッケージをビルド
+```
+
+### ドキュメント
+
+```bash
+make docs-generate   # レポートからdocs/01-validation-report.mdxを再生成
+make docs            # ドキュメントサイト全体をビルド
+make docs-serve      # ホットリロード付きローカル開発サーバー
+```
+
+## テストの実行
+
+```bash
+make test           # カバレッジ付きpytest
+make lint           # ruff check + フォーマットチェック
+make typecheck      # mypy型チェック
+make ci-test        # 上記3つすべて（CIで使用）
+```
+
+インストール済みの場合、pre-commitフックはコミット時に自動で実行されます：
+
+```bash
+make pre-commit-install   # gitフックをインストール
+make pre-commit           # すべてのフックを手動実行
+```
+
+## プロジェクト構成
+
+```
+scripts/
+  download.py           # ステージ1: F5からスペックを取得
+  validate.py           # ステージ2: ライブAPIテスト
+  spectral_lint.py      # ステージ3/5: Spectralリンティングアダプター
+  reconcile.py          # ステージ4: スペックに修正を適用
+  release.py            # ステージ6: リリースパッケージ作成
+  generate_docs.py      # レポートからMDXを生成
+  utils/
+    auth.py             # F5 XC API認証
+    constraint_validator.py  # 制約テスト + 不一致タイプ
+    report_generator.py      # レポートフォーマッティング
+    schemathesis_runner.py   # Schemathesisテストオーケストレーション
+    spec_loader.py           # スペックI/O + JSONフォーマッティング
+
+config/
+  validation.yaml       # パイプライン設定
+  endpoints.yaml        # ライブテスト用ベースラインエンドポイント
+
+spectral/
+  functions/
+    f5-path-params.js   # カスタムSpectral関数
+
+docs/                   # Starlight MDXドキュメント
+tests/                  # pytestテストスイート
+release/specs/          # 出力: 修正済みスペックファイル
+reports/                # 出力: バリデーションおよびSpectralレポート
+```
+
+## 新しい修正メソッドの追加
+
+リコンサイラーに新しいSpectral自動修正を追加するには：
+
+1. **ルールを追加** - `.spectral.yaml` に希望のseverityで追加します。
+
+2. **自動修正を有効化** - `config/validation.yaml` の `spectral.auto_fix` で設定します：
+   ```yaml
+   spectral:
+     auto_fix:
+       your-new-rule: true
+   ```
+
+3. **修正メソッドを追加** - `scripts/reconcile.py` の `SpecReconciler` に追加します：
+   ```python
+   def _fix_your_rule(self, spec: dict, discrepancy: Discrepancy) -> dict | None:
+       """Fix description."""
+       # specをインプレースで変更
+       # 変更があればspecを返し、変更不要ならNoneを返す
+       return spec
+   ```
+
+4. **ディスパッチャーに登録** - `_apply_spectral_fix` ディスパッチャーに追加します：
+   ```python
+   spectral_fixers = {
+       # ... 既存のfixer ...
+       "spectral:your-new-rule": self._fix_your_rule,
+   }
+   ```
+
+5. **テストを追加** - 新しい修正メソッドをカバーするテストを作成します。
+
+## 新しいSpectralルールの追加
+
+JavaScript関数を使用したカスタムSpectralルールを追加するには：
+
+1. `spectral/functions/your-rule.js` に関数を作成します。`(targetVal, options, context)` を受け取り、`{message, path}` オブジェクトの配列を返すデフォルト関数をエクスポートします。
+
+2. `spectral-pipeline.yaml` に登録します：
+   ```yaml
+   functions:
+     - f5-path-params
+     - your-rule
+
+   rules:
+     your-rule:
+       description: "What it checks"
+       message: "{{error}}"
+       severity: error
+       given: "$.paths[*]"
+       then:
+         function: your-rule
+   ```
+
+:::caution
+カスタム関数は `spectral-pipeline.yaml` でのみ動作します。`.spectral.yaml` に `functionsDir` や `functions` を追加しないでください -- この設定はSuper-Linterやその他の外部ツールとの互換性を維持する必要があります。
+:::
+
+## CIパイプライン
+
+GitHub Actionsワークフロー（`validate-and-release.yml`）は以下のタイミングで実行されます：
+
+- **スケジュール**: 毎日UTC 6:00
+- **mainへのプッシュ**: `scripts/`、`config/`、または `pyproject.toml` に変更があった場合
+- **手動ディスパッチ**: 強制リリースまたはドライランのオプション付き
+
+ワークフローには4つのジョブがあります：
+
+1. **validate** -- スペックのダウンロード、バリデーション実行、Spectralリント、リコンサイル、Spectralゲート
+2. **check-release-needed** -- コンテンツハッシュを比較してリリースが必要かどうかを判断
+3. **release** -- パッケージ化とGitHub Releaseの作成（コンテンツに変更があった場合のみ）
+4. **update-docs** -- `01-validation-report.mdx` を再生成し、変更があればPRを作成
+
+**notify** ジョブは、いずれかのジョブが失敗した場合にGitHub issueを作成します。
+
+## ブランチとPRワークフロー
+
+すべての変更は以下のフローに従います：**Issue -> ブランチ -> PR -> CIパス -> マージ**。
+
+- ブランチ名: `feature/<issue>-desc`、`fix/<issue>-desc`、`docs/<issue>-desc`
+- PRにはissueをリンクする必要があります（説明文に `Closes #N` を記載）
+- 必須CIチェック: `Check linked issues` と `Lint Code Base`
+- スカッシュマージ推奨、マージ後にブランチは自動削除
+
+完全なワークフロールールについては `CONTRIBUTING.md` を参照してください。

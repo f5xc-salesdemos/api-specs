@@ -1,0 +1,54 @@
+---
+title: F5 XC API Specs
+description: >-
+  สเปค OpenAPI ที่ผ่านการตรวจสอบ เสริมข้อมูล และสอดคล้องกับ OAS3 สำหรับ F5
+  Distributed Cloud
+template: splash
+sidebar:
+  hidden: true
+hero:
+  tagline: >-
+    สเปค OpenAPI พร้อมใช้งานจริงสำหรับ F5 Distributed Cloud — ผ่านการตรวจสอบกับ
+    API จริง ซ่อมแซมอัตโนมัติ และเสริมด้วยข้อมูลเมตาด้านความปลอดภัย
+    คำจำกัดความเซิร์ฟเวอร์ และแท็กการดำเนินการ
+  actions:
+    - text: ภาพรวมไปป์ไลน์
+      link: 02-pipeline/
+      icon: right-arrow
+      variant: primary
+    - text: ดูรายงานล่าสุด
+      link: 01-validation-report/
+      variant: secondary
+i18n:
+  sourceHash: 9d3db123fe9b
+  translator: machine
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+<CardGrid>
+  <Card title="ภาพรวมไปป์ไลน์" icon="rocket">
+    ไปป์ไลน์อัตโนมัติ 6 ขั้นตอน: ดาวน์โหลด, ตรวจสอบ, ลินต์, ปรับปรุง, ตรวจผ่าน, เผยแพร่
+    [อ่านเพิ่มเติม](/02-pipeline/)
+  </Card>
+  <Card title="การแก้ไขที่นำไปใช้" icon="pencil">
+    การซ่อมแซมข้อจำกัด, การเสริมด้วย Spectral, ข้อมูลเมตาด้านความปลอดภัย และการจัดรูปแบบ JSON
+    [อ่านเพิ่มเติม](/03-fixes-applied/)
+  </Card>
+  <Card title="กฎ Spectral" icon="warning">
+    สถาปัตยกรรมลินต์แบบสองการกำหนดค่าพร้อมฟังก์ชันกำหนดเอง `f5-path-params`
+    [อ่านเพิ่มเติม](/04-spectral-rules/)
+  </Card>
+  <Card title="การกำหนดค่า" icon="setting">
+    เอกสารอ้างอิงสำหรับ `validation.yaml` และ `endpoints.yaml`
+    [อ่านเพิ่มเติม](/05-configuration/)
+  </Card>
+  <Card title="รายงานการตรวจสอบ" icon="document">
+    รายงานที่สร้างอัตโนมัติของการแก้ไขทั้งหมดที่นำไปใช้ในการรันไปป์ไลน์ล่าสุด
+    [อ่านเพิ่มเติม](/01-validation-report/)
+  </Card>
+  <Card title="การมีส่วนร่วม" icon="github">
+    การตั้งค่าสภาพแวดล้อมพัฒนา, ไปป์ไลน์ในเครื่อง, การทดสอบ และเวิร์กโฟลว์ PR
+    [อ่านเพิ่มเติม](/06-contributing/)
+  </Card>
+</CardGrid>
